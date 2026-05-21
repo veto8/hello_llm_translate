@@ -4,15 +4,14 @@ Example to translate with Large Language Models
 
 ## Setup an Account at https://huggingface.co
 * Get and Access Token, so the script can download all the models databases
-* Login
-``
-huggingface-cli login
-``
-
 
 ## Setup the Environment 
 ```
 poetry install
+```
+## Login to huggingface
+```
+poetry run hf auth login
 ```
 
 ## Example from English to German
