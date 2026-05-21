@@ -1,11 +1,14 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import torch
-#model_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
-#model_id = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
-model_id = "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+quant_config = BitsAndBytesConfig(load_in_4bit=True)
+model_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 tokenizer = AutoTokenizer.from_pretrained(model_id)
-model = AutoModelForCausalLM.from_pretrained(model_id)
-print("DeepSeek Chat (type 'quit' to exit)")
+model = AutoModelForCausalLM.from_pretrained(
+    model_id,
+    quantization_config=quant_config,
+    device_map="auto",
+)
+print("Qwen Chat (type 'quit' to exit)")
 print("─" * 40)
 while True:
     user_input = input("\nYou: ")
@@ -16,7 +19,7 @@ while True:
         f"User: {user_input}\n"
         "Assistant:"
     )
-    inputs = tokenizer(prompt, return_tensors="pt")
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     with torch.no_grad():
         outputs = model.generate(
             **inputs,
@@ -29,5 +32,5 @@ while True:
         )
     result = tokenizer.decode(outputs[0], skip_special_tokens=True)
     reply = result.split("Assistant:")[-1].strip()
-    print(f"DeepSeek: {reply}")
+    print(f"Qwen: {reply}")
     
