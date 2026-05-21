@@ -10,12 +10,9 @@ huggingface-cli login
 ``
 
 
-## Setup the Enviroment
+## Setup the Environment 
 ```
-python3.13 -m env env 
-source env/bin/activate
-pip install pip --upgrade
-pip install -r requirements
+poetry install
 ```
 
 ## Example from English to German
@@ -23,5 +20,8 @@ pip install -r requirements
 cd Helsinki-NLP/opus-mt-en-de/
 ./main.py 
 ```
+
+
+
 
 
