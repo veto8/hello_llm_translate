@@ -21,6 +21,12 @@ cd Helsinki-NLP/opus-mt-en-de/
 ```
 
 
+## Extra Repository ##
+```
+ git remote add codeberg ssh://git@codeberg.org/veto/hello_llm_translate
+ git push codeberg
+
+```
 
 
 
