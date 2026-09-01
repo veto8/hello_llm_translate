@@ -1,3 +1,5 @@
+<img src="hello_llm_translate.svg" alt="hello_llm_translate" width="120">
+
 # hello_llm_translate
 
 Example to translate with Large Language Models 
