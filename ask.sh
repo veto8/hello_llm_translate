@@ -9,15 +9,36 @@ if [ -z "$OLLAMA_BIN" ]; then
     [ -n "$c" ] && [ -x "$c" ] && OLLAMA_BIN="$c" && break
   done
 fi
+NEED_INSTALL=0
 if [ -z "$OLLAMA_BIN" ]; then
-  echo "ollama binary not found in PATH (/usr/local/bin, /usr/bin, ~/.local/bin). Install or set OLLAMA_BIN."
-  exit 1
+  NEED_INSTALL=1
+  echo "Warning: ollama binary not found (checked PATH, /usr/local/bin, /usr/bin, ~/.local/bin)."
+  echo "Use task 6 to install it, or set OLLAMA_BIN to an existing binary."
 fi
 MODEL="${MODEL:-qwen3:8b}"
 HOST="${OLLAMA_HOST:-127.0.0.1:11434}"
 PORT="${PORT:-11434}"
 PID_FILE="$DIR/.ollama.pid"
 LOG_FILE="$DIR/.ollama.log"
+
+systemd_managed() {
+  command -v systemctl >/dev/null 2>&1 && systemctl is-active ollama >/dev/null 2>&1
+}
+
+install_ollama() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL https://ollama.com/install.sh | sh
+    OLLAMA_BIN="$(command -v ollama)"
+    if [ -n "$OLLAMA_BIN" ]; then
+      NEED_INSTALL=0
+      echo "Ollama installed: $OLLAMA_BIN"
+    else
+      echo "Install finished but ollama not found — add /usr/local/bin to PATH or set OLLAMA_BIN."
+    fi
+  else
+    echo "curl not found — install Ollama manually: https://ollama.com/download"
+  fi
+}
 
 server_up() {
   if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
@@ -27,6 +48,12 @@ server_up() {
 }
 
 start_server() {
+  if systemd_managed; then
+    echo "Ollama is a systemd service (ollama.service) — using systemctl"
+    systemctl start ollama
+    echo "Started."
+    return 0
+  fi
   if server_up; then
     echo "Ollama already running on $HOST"
     return 0
@@ -46,6 +73,12 @@ start_server() {
 }
 
 stop_server() {
+  if systemd_managed; then
+    echo "Ollama is a systemd service (ollama.service) — using systemctl"
+    systemctl stop ollama
+    echo "Stopped."
+    return 0
+  fi
   if [ -f "$PID_FILE" ]; then
     kill "$(cat "$PID_FILE")" 2>/dev/null
     rm -f "$PID_FILE"
@@ -56,6 +89,11 @@ stop_server() {
 }
 
 status_server() {
+  if systemd_managed; then
+    echo "Running via systemd (ollama.service) — models:"
+    curl -s "http://$HOST/api/tags" | python3 -c "import json,sys; [print('  -', m['name'], f\"{m['size']/1e9:.1f} GB\") for m in json.load(sys.stdin).get('models',[])]" 2>/dev/null || echo "  (none)"
+    return 0
+  fi
   if server_up; then
     echo "Running on $HOST — models:"
     curl -s "http://$HOST/api/tags" | python3 -c "import json,sys; [print('  -', m['name'], f\"{m['size']/1e9:.1f} GB\") for m in json.load(sys.stdin).get('models',[])]" 2>/dev/null || echo "  (none)"
@@ -77,13 +115,15 @@ test_chat() {
 
 while true; do
   echo ""
-  echo "hello_llm_translate — local LLM ($MODEL)"
-  echo "  1  Start Ollama server"
-  echo "  2  Status"
-  echo "  3  Stop server"
-  echo "  4  Pull model $MODEL"
-  echo "  5  Test chat"
-  echo "  0  Exit"
+echo "hello_llm_translate — local LLM ($MODEL)"
+[ "$NEED_INSTALL" = "1" ] && echo "  !  Ollama not installed yet — run task 6"
+echo "  1  Start Ollama server"
+echo "  2  Status"
+echo "  3  Stop server"
+echo "  4  Pull model $MODEL"
+echo "  5  Test chat"
+echo "  6  Install Ollama (only if not found)"
+echo "  0  Exit"
   if ! read -rp "Task: " task; then
     break
   fi
@@ -93,6 +133,7 @@ while true; do
     3) stop_server ;;
     4) pull_model ;;
     5) test_chat ;;
+    6) install_ollama ;;
     0) break ;;
     *) echo "Unknown task" ;;
   esac
