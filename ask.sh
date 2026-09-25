@@ -3,7 +3,16 @@
 # Port 11434, OpenAI-compatible API for opencode.
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OLLAMA_BIN="${OLLAMA_BIN:-ollama}"
+OLLAMA_BIN="${OLLAMA_BIN:-}"
+if [ -z "$OLLAMA_BIN" ]; then
+  for c in "$(command -v ollama)" /usr/local/bin/ollama /usr/bin/ollama /home/veto/.local/bin/ollama; do
+    [ -n "$c" ] && [ -x "$c" ] && OLLAMA_BIN="$c" && break
+  done
+fi
+if [ -z "$OLLAMA_BIN" ]; then
+  echo "ollama binary not found in PATH (/usr/local/bin, /usr/bin, ~/.local/bin). Install or set OLLAMA_BIN."
+  exit 1
+fi
 MODEL="${MODEL:-qwen3:8b}"
 HOST="${OLLAMA_HOST:-127.0.0.1:11434}"
 PORT="${PORT:-11434}"
