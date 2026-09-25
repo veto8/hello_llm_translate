@@ -16,7 +16,8 @@ if [ -z "$OLLAMA_BIN" ]; then
   echo "Use task 6 to install it, or set OLLAMA_BIN to an existing binary."
 fi
 MODEL="${MODEL:-qwen3:8b}"
-HOST="${OLLAMA_HOST:-127.0.0.1:11434}"
+BIND="${OLLAMA_HOST:-127.0.0.1:11434}"
+HOST="${HOST:-127.0.0.1:11434}"
 PORT="${PORT:-11434}"
 PID_FILE="$DIR/.ollama.pid"
 LOG_FILE="$DIR/.ollama.log"
@@ -59,7 +60,7 @@ start_server() {
     return 0
   fi
   echo "Starting Ollama on $HOST (log: $LOG_FILE)"
-  nohup "$OLLAMA_BIN" serve >"$LOG_FILE" 2>&1 &
+  nohup env OLLAMA_HOST="$BIND" "$OLLAMA_BIN" serve >"$LOG_FILE" 2>&1 &
   echo $! >"$PID_FILE"
   for i in $(seq 1 30); do
     sleep 1
