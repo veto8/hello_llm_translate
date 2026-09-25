@@ -16,7 +16,7 @@ if [ -z "$OLLAMA_BIN" ]; then
   echo "Use task 6 to install it, or set OLLAMA_BIN to an existing binary."
 fi
 MODEL="${MODEL:-qwen3:8b}"
-BIND="${OLLAMA_HOST:-127.0.0.1:11434}"
+BIND="${OLLAMA_HOST:-0.0.0.0:11434}"
 HOST="${HOST:-127.0.0.1:11434}"
 PORT="${PORT:-11434}"
 PID_FILE="$DIR/.ollama.pid"
@@ -59,7 +59,7 @@ start_server() {
     echo "Ollama already running on $HOST"
     return 0
   fi
-  echo "Starting Ollama on $HOST (log: $LOG_FILE)"
+  echo "Starting Ollama (listen $BIND, log: $LOG_FILE)"
   nohup env OLLAMA_HOST="$BIND" "$OLLAMA_BIN" serve >"$LOG_FILE" 2>&1 &
   echo $! >"$PID_FILE"
   for i in $(seq 1 30); do
@@ -114,6 +114,83 @@ test_chat() {
   | python3 -c "import json,sys; print(json.load(sys.stdin)['choices'][0]['message']['content'])"
 }
 
+interactive_chat() {
+  if ! server_up; then
+    echo "Server not running — start it with task 1 first."
+    return 1
+  fi
+  echo "Interactive chat with $MODEL (empty line or /quit to exit, /clear to reset, /models to list)."
+  local history="[]"
+  local tmpf
+  tmpf="$(mktemp)"
+  while true; do
+    printf "\n> "
+    if ! IFS= read -r line; then
+      break
+    fi
+    case "$line" in
+      "") break ;;
+      "/quit") break ;;
+      "/clear") history="[]"; echo "(history cleared)"; continue ;;
+      "/models") "$OLLAMA_BIN" list 2>/dev/null; continue ;;
+      *) ;;
+    esac
+    history="$(python3 - "$history" "$line" <<'PYEOF'
+import json,sys
+hist=json.loads(sys.argv[1])
+hist.append({"role":"user","content":sys.argv[2]})
+print(json.dumps(hist))
+PYEOF
+)"
+    payload="$(python3 - "$history" "$MODEL" <<'PYEOF'
+import json,sys
+hist=json.loads(sys.argv[1])
+print(json.dumps({"model":sys.argv[2],"messages":hist,"stream":True,"max_tokens":1024}))
+PYEOF
+)"
+    echo ""
+    curl -sN "http://$HOST/v1/chat/completions" \
+      -H "Content-Type: application/json" \
+      -d "$payload" \
+      | python3 -c "
+import json,sys
+reply=''
+for line in sys.stdin:
+    line=line.strip()
+    if not line.startswith('data:'):
+        continue
+    data=line[5:].strip()
+    if data=='[DONE]':
+        break
+    try:
+        chunk=json.loads(data)
+    except Exception:
+        continue
+    c=chunk.get('choices',[{}])[0].get('delta',{}).get('content') or ''
+    if c:
+        sys.stdout.write(c); sys.stdout.flush(); reply+=c
+import os
+with open(os.environ['TMPF'],'w') as f:
+    f.write(reply)
+" 2>/dev/null
+    TMPF="$tmpf"
+    history="$(python3 - "$history" "$tmpf" <<'PYEOF'
+import json,sys
+hist=json.loads(sys.argv[1])
+try:
+    with open(sys.argv[2]) as f:
+        reply=f.read()
+    hist.append({"role":"assistant","content":reply})
+except Exception:
+    pass
+print(json.dumps(hist))
+PYEOF
+)"
+  done
+  rm -f "$tmpf"
+  echo ""
+}
+
 while true; do
   echo ""
 echo "hello_llm_translate — local LLM ($MODEL)"
@@ -124,6 +201,7 @@ echo "  3  Stop server"
 echo "  4  Pull model $MODEL"
 echo "  5  Test chat"
 echo "  6  Install Ollama (only if not found)"
+echo "  7  Chat (interactive)"
 echo "  0  Exit"
   if ! read -rp "Task: " task; then
     break
@@ -135,6 +213,7 @@ echo "  0  Exit"
     4) pull_model ;;
     5) test_chat ;;
     6) install_ollama ;;
+    7) interactive_chat ;;
     0) break ;;
     *) echo "Unknown task" ;;
   esac
